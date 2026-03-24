@@ -18,6 +18,27 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
+// ✅ Test endpoint (no DB required)
+app.get('/test', (_, res) => {
+  res.json({ 
+    message: 'Backend is working!',
+    mongoUri: process.env.MONGO_URI ? '✓ Set' : '✗ Missing',
+    jwtSecret: process.env.JWT_SECRET ? '✓ Set' : '✗ Missing'
+  });
+});
+
+// ✅ Root endpoint
+app.get('/', (_, res) => {
+  res.json({ 
+    message: 'VMS Backend API is running',
+    endpoints: {
+      test: '/test',
+      health: '/api/health',
+      auth: '/api/auth/login'
+    }
+  });
+});
+
 // ✅ Routes
 app.use('/api/auth', require('../routes/auth'));
 app.use('/api/visitors', require('../routes/visitors'));
@@ -26,12 +47,7 @@ app.use('/api/logs', require('../routes/logs'));
 
 // ✅ Health check
 app.get('/api/health', (_, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// ✅ Root endpoint
-app.get('/', (_, res) => {
-  res.json({ message: 'VMS Backend API is running' });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), mongoConnected: isConnected });
 });
 
 // ✅ MongoDB connection (cached)
@@ -83,7 +99,13 @@ app.use(async (req, res, next) => {
 
 // ✅ 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found', path: req.path, method: req.method });
+  console.error(`404 NOT FOUND: ${req.method} ${req.path}`);
+  res.status(404).json({ 
+    error: 'Route not found',
+    method: req.method,
+    path: req.path,
+    availableEndpoints: ['/', '/test', '/api/health', '/api/auth/login', '/api/visitors', '/api/blacklist', '/api/logs']
+  });
 });
 
 // ✅ Error handler
