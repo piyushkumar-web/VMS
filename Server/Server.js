@@ -56,10 +56,10 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 
 // ✅ Routes (IMPORTANT: path fix)
-app.use('/api/auth', require('../routes/auth'));
-app.use('/api/visitors', require('../routes/visitors'));
-app.use('/api/blacklist', require('../routes/blacklist'));
-app.use('/api/logs', require('../routes/logs'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/visitors', require('./routes/visitors'));
+app.use('/api/blacklist', require('./routes/blacklist'));
+app.use('/api/logs', require('./routes/logs'));
 
 // ✅ Health check
 app.get('/api/health', (_, res) => {
@@ -78,7 +78,7 @@ const connectDB = async () => {
     console.log('MongoDB connected');
 
     // ✅ Seed users (only once)
-    const User = require('../models/User');
+    const User = require('./models/User');
 
     const adminExists = await User.findOne({ role: 'admin' });
     if (!adminExists) {
