@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-const apiBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-const api = axios.create({ baseURL: apiBaseURL });
+const api = axios.create({ baseURL: '/api' });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('vms_token');
