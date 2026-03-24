@@ -44,50 +44,60 @@ const cors = require('cors');
 const app = express();
 
 // Middleware
-app.use(cors({ 
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'], 
-  credentials: true 
-}));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
-// Database Connection Logic (Serverless optimized)
-let isConnected = false;
+// Database Connection Helper
 const connectDB = async () => {
-  if (isConnected) return;
-  try {
-    const db = await mongoose.connect(process.env.MONGO_URI);
-    isConnected = db.connections[0].readyState;
-    console.log('MongoDB connected');
-    
-    // Seed default users (Keep this here for first-run setup)
-    const User = require('../models/User'); // Adjusted path for api/ folder
-    const adminExists = await User.findOne({ role: 'admin' });
-    if (!adminExists) {
-      await User.create({ name: 'Super Admin', email: 'admin@vms.com', password: 'Admin@123', role: 'admin' });
+    if (mongoose.connection.readyState >= 1) return;
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
+        console.log("Database connected successfully");
+    } catch (error) {
+        console.error("Database connection failed:", error.message);
+        throw error; // Let the request handler catch this
     }
-    const guardExists = await User.findOne({ role: 'guard' });
-    if (!guardExists) {
-      await User.create({ name: 'Default Guard', email: 'guard@vms.com', password: 'Guard@123', role: 'guard' });
-    }
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-  }
 };
 
-// Middleware to ensure DB is connected before every request
-app.use(async (req, res, next) => {
-  await connectDB();
-  next();
+// Health Check with Try-Catch
+app.get('/api/health', async (req, res) => {
+    try {
+        await connectDB();
+        res.status(200).json({ status: 'ok', db: 'connected' });
+    } catch (err) {
+        res.status(500).json({ status: 'error', message: err.message });
+    }
 });
 
-// Routes - IMPORTANT: Ensure paths to route files are correct (../)
-app.use('/api/auth', require('../routes/auth'));
-app.use('/api/visitors', require('../routes/visitors'));
-app.use('/api/blacklist', require('../routes/blacklist'));
-app.use('/api/logs', require('../routes/logs'));
+// Routes - Wrapped in a middleware to ensure DB is ready
+app.use('/api', async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (err) {
+        res.status(500).json({ error: "Database initialization failed" });
+    }
+});
 
-app.get('/api/health', (_, res) => res.json({ status: 'ok', environment: 'vercel' }));
+// Load your routes (ensure paths are correct relative to server/index.js)
+try {
+    app.use('/api/auth', require('./routes/auth'));
+    app.use('/api/visitors', require('./routes/visitors'));
+    app.use('/api/blacklist', require('./routes/blacklist'));
+    app.use('/api/logs', require('./routes/logs'));
+} catch (err) {
+    console.error("Route Loading Error:", err.message);
+}
 
-// DO NOT use app.listen() here. 
-// Export the app for Vercel to handle.
+// 404 Catch-all for undefined routes inside Express
+app.use((req, res) => {
+    res.status(404).json({ error: `Route ${req.originalUrl} not found on this server.` });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error("SERVER_ERROR:", err.stack);
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
+});
+
 module.exports = app;
