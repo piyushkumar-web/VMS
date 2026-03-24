@@ -36,15 +36,22 @@ app.get('/', (_, res) => {
       test: '/test',
       health: '/api/health',
       auth: '/api/auth/login'
-    }
+    },
+    mongoUri: process.env.MONGO_URI ? '✓ Set' : '✗ Missing',
+    jwtSecret: process.env.JWT_SECRET ? '✓ Set' : '✗ Missing'
   });
 });
 
-// ✅ Routes
-app.use('/api/auth', require('../routes/auth'));
-app.use('/api/visitors', require('../routes/visitors'));
-app.use('/api/blacklist', require('../routes/blacklist'));
-app.use('/api/logs', require('../routes/logs'));
+// ✅ Routes (wrapped in try-catch for debugging)
+try {
+  app.use('/api/auth', require('../routes/auth'));
+  app.use('/api/visitors', require('../routes/visitors'));
+  app.use('/api/blacklist', require('../routes/blacklist'));
+  app.use('/api/logs', require('../routes/logs'));
+  console.log('Routes loaded successfully');
+} catch (err) {
+  console.error('Error loading routes:', err.message);
+}
 
 // ✅ Health check
 app.get('/api/health', (_, res) => {
