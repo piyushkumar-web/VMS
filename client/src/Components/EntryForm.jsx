@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SignatureCanvas from 'react-signature-canvas';
 import toast from 'react-hot-toast';
@@ -6,19 +6,106 @@ import api from '../api/axios';
 
 const inputCls = "w-full px-4 py-3 rounded-xl bg-white/60 border border-slate-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none transition-all text-slate-800 placeholder-slate-400";
 const labelCls = "block text-sm font-semibold text-slate-700 mb-2";
-
 const PURPOSES = ['Meeting', 'Interview', 'Delivery', 'Maintenance', 'Personal', 'Other'];
 
+// Grazitti Interactive, Plot 19, Sector 22, Panchkula
+const OFFICE = { lat: 30.6942, lng: 76.8606, radiusMeters: 200 };
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Returns { lat, lng, accuracy } or null. Shows browser permission prompt.
+function requestGeo() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
+      err => {
+        console.warn('Geo error:', err.message);
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  });
+}
+
 export default function EntryForm() {
-  const [step, setStep] = useState(1); // 1=form, 2=photo+sign, 3=success
+  const [step, setStep] = useState(1);
   const [form, setForm] = useState({ fullName: '', phone: '', email: '', company: '', address: '', purpose: '', host: '' });
   const [photo, setPhoto] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+
+  // geo states
+  const [geoStatus, setGeoStatus] = useState('idle'); // idle | requesting | granted | denied
+  const [geoCoords, setGeoCoords] = useState(null);   // { lat, lng, accuracy }
+  const [isInsidePremises, setIsInsidePremises] = useState(null); // null | true | false
+  const [distanceM, setDistanceM] = useState(null);
+  const [lastChecked, setLastChecked] = useState(null);
+
   const sigRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const geoIntervalRef = useRef(null);
+  const visitorIdRef = useRef(null);
+
+  // ── Request geo on mount ──────────────────────────────────
+  useEffect(() => {
+    askGeo();
+    return () => clearInterval(geoIntervalRef.current);
+  }, []);
+
+  const askGeo = async () => {
+    setGeoStatus('requesting');
+    const coords = await requestGeo();
+    if (!coords) {
+      setGeoStatus('denied');
+      toast.error('Location access denied. Please allow location in browser settings.', { duration: 5000 });
+      return;
+    }
+    setGeoStatus('granted');
+    setGeoCoords(coords);
+    const dist = haversineMeters(coords.lat, coords.lng, OFFICE.lat, OFFICE.lng);
+    setDistanceM(Math.round(dist));
+    setIsInsidePremises(dist <= OFFICE.radiusMeters);
+    setLastChecked(new Date());
+  };
+
+  // ── 15-min geo re-check loop ──────────────────────────────
+  const startGeoLoop = (mongoId) => {
+    visitorIdRef.current = mongoId;
+    geoIntervalRef.current = setInterval(async () => {
+      const coords = await requestGeo();
+      if (!coords) return;
+      setGeoCoords(coords);
+      const dist = haversineMeters(coords.lat, coords.lng, OFFICE.lat, OFFICE.lng);
+      const inside = dist <= OFFICE.radiusMeters;
+      setDistanceM(Math.round(dist));
+      setIsInsidePremises(inside);
+      setLastChecked(new Date());
+
+      // Update backend
+      try {
+        await api.patch(`/visitors/${visitorIdRef.current}/location`, {
+          lat: coords.lat, lng: coords.lng, accuracy: coords.accuracy,
+        });
+      } catch { /* silent */ }
+
+      // Alert visitor if outside
+      if (!inside) {
+        toast.error(`⚠️ You appear to be outside office premises (${Math.round(dist)}m away). Please return to Grazitti Interactive.`, { duration: 8000 });
+      } else {
+        toast.success('📍 Location verified — you are inside office premises.', { duration: 3000 });
+      }
+    }, 15 * 60 * 1000);
+  };
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -50,14 +137,34 @@ export default function EntryForm() {
       toast.error('Please fill all required fields');
       return;
     }
+    // Re-fetch fresh coords at submit time
+    let coords = geoCoords;
+    if (geoStatus === 'denied' || !coords) {
+      // Try once more
+      const fresh = await requestGeo();
+      if (fresh) {
+        coords = fresh;
+        setGeoCoords(fresh);
+        setGeoStatus('granted');
+        const dist = haversineMeters(fresh.lat, fresh.lng, OFFICE.lat, OFFICE.lng);
+        setDistanceM(Math.round(dist));
+        setIsInsidePremises(dist <= OFFICE.radiusMeters);
+      }
+    }
+
     setLoading(true);
     try {
       const signature = sigRef.current?.isEmpty() ? null : sigRef.current?.toDataURL();
-      const payload = { ...form, photoUrl: photo, signature };
+      const payload = {
+        ...form, photoUrl: photo, signature,
+        ...(coords && { geoLocation: { lat: coords.lat, lng: coords.lng, accuracy: coords.accuracy, lastVerified: new Date() } }),
+      };
       const { data } = await api.post('/visitors/register', payload);
       setResult(data);
       setStep(3);
       toast.success('Check-in registered successfully!');
+      setTimeout(() => autoDownloadQR(data), 600);
+      startGeoLoop(data.visitor._id);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Submission failed');
     } finally {
@@ -65,92 +172,119 @@ export default function EntryForm() {
     }
   };
 
-  const downloadQR = () => {
+  const autoDownloadQR = (data) => {
     const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 520;
+    canvas.width = 400; canvas.height = 520;
     const ctx = canvas.getContext('2d');
-
-    // Background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 400, 520);
-
-    // Orange header bar
-    ctx.fillStyle = '#f97316';
-    ctx.fillRect(0, 0, 400, 70);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 400, 520);
+    ctx.fillStyle = '#f97316'; ctx.fillRect(0, 0, 400, 70);
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('VISITOR PASS', 200, 35);
-    ctx.font = '13px sans-serif';
-    ctx.fillText('Visitor Management System', 200, 56);
-
-    // Load QR image and draw
+    ctx.font = '13px sans-serif'; ctx.fillText('Visitor Management System', 200, 56);
     const img = new Image();
     img.onload = () => {
       ctx.drawImage(img, 75, 85, 250, 250);
-
-      // Visitor details
-      ctx.fillStyle = '#1e293b';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(result.visitor.fullName, 200, 365);
-
-      ctx.font = '13px sans-serif';
-      ctx.fillStyle = '#64748b';
-      ctx.fillText(result.visitor.purpose + (result.visitor.host ? ` · Host: ${result.visitor.host}` : ''), 200, 388);
+      ctx.fillStyle = '#1e293b'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(data.visitor.fullName, 200, 365);
+      ctx.font = '13px sans-serif'; ctx.fillStyle = '#64748b';
+      ctx.fillText(data.visitor.purpose + (data.visitor.host ? ` · Host: ${data.visitor.host}` : ''), 200, 388);
       ctx.fillText(`Date: ${today}`, 200, 410);
-
-      ctx.font = '11px monospace';
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`ID: ${result.visitor.visitorId}`, 200, 435);
-
-      // Footer
-      ctx.fillStyle = '#f1f5f9';
-      ctx.fillRect(0, 455, 400, 65);
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '11px sans-serif';
+      ctx.font = '11px monospace'; ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`ID: ${data.visitor.visitorId}`, 200, 435);
+      ctx.fillStyle = '#f1f5f9'; ctx.fillRect(0, 455, 400, 65);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '11px sans-serif';
       ctx.fillText('Present this pass to the security guard at entry', 200, 480);
       ctx.fillText(`Generated on ${today}`, 200, 498);
-
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = `visitor-pass-${result.visitor.fullName.replace(/\s+/g, '-')}-${today}.png`;
+      a.download = `visitor-pass-${data.visitor.fullName.replace(/\s+/g, '-')}-${today}.png`;
       a.click();
     };
-    img.src = result.qrCode;
+    img.src = data.qrCode;
   };
 
+  // ── Geo status banner ─────────────────────────────────────
+  const GeoBanner = () => {
+    if (geoStatus === 'idle') return null;
+    if (geoStatus === 'requesting') return (
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-700 font-medium">
+        <div className="w-4 h-4 border-2 border-blue-400 border-t-blue-600 rounded-full animate-spin flex-shrink-0" />
+        Requesting location permission…
+      </div>
+    );
+    if (geoStatus === 'denied') return (
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-sm">
+        <span className="text-red-700 font-medium">⚠️ Location access denied — please allow in browser settings</span>
+        <button onClick={askGeo} className="text-xs font-bold text-red-600 underline whitespace-nowrap">Retry</button>
+      </div>
+    );
+    // granted
+    return (
+      <div className={`flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium ${
+        isInsidePremises === true ? 'bg-green-50 border-green-200 text-green-700' :
+        isInsidePremises === false ? 'bg-orange-50 border-orange-200 text-orange-700' :
+        'bg-blue-50 border-blue-100 text-blue-700'
+      }`}>
+        <span>
+          {isInsidePremises === true && '✅ Inside office premises'}
+          {isInsidePremises === false && `⚠️ Outside office premises (${distanceM}m away)`}
+          {isInsidePremises === null && '📍 Location captured'}
+          {distanceM !== null && isInsidePremises !== null && ` · ${distanceM}m from office`}
+        </span>
+        {lastChecked && (
+          <span className="text-xs opacity-70 whitespace-nowrap">
+            {lastChecked.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  // ── Success screen ────────────────────────────────────────
   if (step === 3 && result) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-orange-50 flex items-center justify-center p-6">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-white/60 shadow-2xl rounded-3xl p-10 text-center"
-        >
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-white/60 shadow-2xl rounded-3xl p-10 text-center">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }}
             className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <span className="text-4xl">✅</span>
           </motion.div>
           <h2 className="text-2xl font-bold text-slate-800 mb-1">You're Registered!</h2>
-          <p className="text-slate-500 mb-6">Show this QR code to the security guard</p>
+          <p className="text-slate-500 mb-4">Show this QR code to the security guard</p>
 
-          <div className="bg-white rounded-2xl p-4 shadow-inner border border-slate-100 inline-block mb-6">
+          {/* Live geo status on success screen */}
+          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4 ${
+            isInsidePremises === true ? 'bg-green-100 text-green-700' :
+            isInsidePremises === false ? 'bg-orange-100 text-orange-700' :
+            'bg-slate-100 text-slate-500'
+          }`}>
+            {isInsidePremises === true && '📍 Inside premises · tracking every 15 min'}
+            {isInsidePremises === false && `⚠️ Outside premises (${distanceM}m) · tracking every 15 min`}
+            {isInsidePremises === null && '📍 Location tracking active'}
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-inner border border-slate-100 inline-block mb-4">
             <img src={result.qrCode} alt="QR Code" className="w-56 h-56 mx-auto" />
           </div>
 
+          <p className="text-xs text-slate-400 mb-1">QR downloaded automatically ⬇</p>
           <p className="text-xs text-slate-400 mb-2">Visitor ID: <span className="font-mono text-slate-600">{result.visitor.visitorId}</span></p>
           <p className="text-sm font-semibold text-slate-700 mb-6">{result.visitor.fullName} · {result.visitor.purpose}</p>
 
           <div className="flex gap-3">
-            <motion.button whileTap={{ scale: 0.97 }} onClick={downloadQR}
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => autoDownloadQR(result)}
               className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-200">
-              ⬇ Download QR
+              ⬇ Re-download QR
             </motion.button>
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => { setStep(1); setForm({ fullName: '', phone: '', email: '', company: '', address: '', purpose: '', host: '' }); setPhoto(null); setResult(null); }}
-              className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => {
+              clearInterval(geoIntervalRef.current);
+              setStep(1); setForm({ fullName: '', phone: '', email: '', company: '', address: '', purpose: '', host: '' });
+              setPhoto(null); setResult(null); setGeoStatus('idle'); setGeoCoords(null);
+              setIsInsidePremises(null); setDistanceM(null); setLastChecked(null);
+              askGeo();
+            }} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">
               New Entry
             </motion.button>
           </div>
@@ -164,18 +298,21 @@ export default function EntryForm() {
       <div className="fixed top-0 -left-20 w-96 h-96 bg-orange-200 rounded-full blur-3xl opacity-25" />
       <div className="fixed bottom-0 -right-20 w-96 h-96 bg-slate-300 rounded-full blur-3xl opacity-20" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-2xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-2xl rounded-3xl p-8 md:p-12"
-      >
+      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+        className="relative w-full max-w-2xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-2xl rounded-3xl p-8 md:p-12">
+
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-200">
             <span className="text-white text-2xl">🏢</span>
           </div>
           <h2 className="text-3xl font-bold text-slate-800">Visitor Check-In</h2>
           <p className="text-slate-500 mt-1">Please fill in your details to proceed</p>
+        </div>
+
+        {/* Geo banner — always visible */}
+        <div className="mb-6">
+          <GeoBanner />
         </div>
 
         {/* Step Indicator */}
@@ -194,11 +331,11 @@ export default function EntryForm() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className={labelCls}>Full Name *</label>
-                  <input name="fullName" value={form.fullName} onChange={handleChange} placeholder="John Doe" className={inputCls} required />
+                  <input name="fullName" value={form.fullName} onChange={handleChange} placeholder="John Doe" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Phone Number *</label>
-                  <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210" className={inputCls} required />
+                  <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Email Address</label>
@@ -268,11 +405,8 @@ export default function EntryForm() {
                 <label className={labelCls}>Digital Signature (NDA Agreement)</label>
                 <p className="text-xs text-slate-400 mb-2">By signing, you agree to our visitor policy and NDA terms.</p>
                 <div className="border-2 border-slate-200 rounded-2xl overflow-hidden bg-white">
-                  <SignatureCanvas
-                    ref={sigRef}
-                    penColor="#1e293b"
-                    canvasProps={{ className: 'w-full h-32', style: { width: '100%', height: '128px' } }}
-                  />
+                  <SignatureCanvas ref={sigRef} penColor="#1e293b"
+                    canvasProps={{ className: 'w-full h-32', style: { width: '100%', height: '128px' } }} />
                 </div>
                 <button onClick={() => sigRef.current?.clear()} className="text-xs text-orange-500 mt-1 hover:underline">Clear signature</button>
               </div>

@@ -25,6 +25,13 @@ const visitorSchema = new mongoose.Schema({
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   isBlacklisted: { type: Boolean, default: false },
   date: { type: String, default: () => new Date().toISOString().split('T')[0] },
+  geoLocation: {
+    lat: Number,
+    lng: Number,
+    accuracy: Number,
+    lastVerified: Date,
+    isInsidePremises: Boolean,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Visitor', visitorSchema);

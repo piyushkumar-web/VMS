@@ -6,18 +6,53 @@ const Log = require('../models/Log');
 const { protect, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
+// Office coordinates — Grazitti Interactive, Plot 19, Sector 22, Panchkula
+const OFFICE = { lat: 30.6942, lng: 76.8606, radiusMeters: 200 };
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // Public: Submit visitor entry form
 router.post('/register', async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, geoLocation } = req.body;
     const blacklisted = await Blacklist.findOne({ phone });
     if (blacklisted) return res.status(403).json({ message: 'Entry not permitted. Contact security.' });
-    const visitor = await Visitor.create(req.body);
+    const body = { ...req.body };
+    if (geoLocation?.lat && geoLocation?.lng) {
+      const dist = haversineMeters(geoLocation.lat, geoLocation.lng, OFFICE.lat, OFFICE.lng);
+      body.geoLocation = { ...geoLocation, isInsidePremises: dist <= OFFICE.radiusMeters, lastVerified: new Date() };
+    }
+    const visitor = await Visitor.create(body);
     const qrData = JSON.stringify({ visitorId: visitor.visitorId, id: visitor._id });
     const qrCode = await QRCode.toDataURL(qrData, { width: 400, margin: 2 });
     visitor.qrCode = qrCode;
     await visitor.save();
     res.status(201).json({ visitor, qrCode });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Public: Update visitor geo-location
+router.patch('/:id/location', async (req, res) => {
+  try {
+    const { lat, lng, accuracy } = req.body;
+    const dist = haversineMeters(lat, lng, OFFICE.lat, OFFICE.lng);
+    const isInsidePremises = dist <= OFFICE.radiusMeters;
+    const visitor = await Visitor.findByIdAndUpdate(
+      req.params.id,
+      { geoLocation: { lat, lng, accuracy, lastVerified: new Date(), isInsidePremises } },
+      { new: true }
+    );
+    if (!visitor) return res.status(404).json({ message: 'Visitor not found' });
+    res.json({ ok: true, isInsidePremises, distanceMeters: Math.round(dist), lastVerified: visitor.geoLocation.lastVerified });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

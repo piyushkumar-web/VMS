@@ -17,6 +17,7 @@ const STATUS_COLORS = {
 
 const TABS = [
   { id: 'scan', label: '📷 Entry Scan' },
+  { id: 'scanned', label: '🆕 Scanned' },
   { id: 'verify', label: '🔍 Verify' },
   { id: 'roster', label: '🚨 Roster' },
   { id: 'recent', label: '📋 Recent' },
@@ -84,12 +85,19 @@ export default function GuardPanel() {
   const [recentDate, setRecentDate] = useState('');
   const [recentStatus, setRecentStatus] = useState('');
 
+  // Scanned visitors (pending, for guard to approve without re-scanning)
+  const [scanned, setScanned] = useState([]);
+  const [scannedLoading, setScannedLoading] = useState(false);
+  const [scannedDetail, setScannedDetail] = useState(null);
+  const [scannedAction, setScannedAction] = useState('');
+
   const entryScanner = useScanner('entry-qr-reader', onEntryScan);
   const verifyScanner = useScanner('verify-qr-reader', onVerifyScan);
 
   useEffect(() => {
     if (tab === 'roster') fetchRoster();
     if (tab === 'recent') fetchRecent(1, recentDate, recentStatus);
+    if (tab === 'scanned') fetchScanned();
     // stop both scanners on tab change
     return () => {
       entryScanner.stop();
@@ -106,6 +114,10 @@ export default function GuardPanel() {
       const { data } = await api.get(`/visitors/scan/${parsed.visitorId}`);
       setVisitor(data);
       setApprovedVisitor(null);
+      // Also add to scanned list if pending
+      if (data.status === 'pending') {
+        setScanned(prev => prev.find(v => v._id === data._id) ? prev : [data, ...prev]);
+      }
       toast.success('Visitor found!');
     } catch {
       toast.error('Invalid or unrecognized QR code');
@@ -179,6 +191,30 @@ export default function GuardPanel() {
     setRoster(data);
   };
 
+  const fetchScanned = async () => {
+    setScannedLoading(true);
+    try {
+      const { data } = await api.get('/visitors?status=pending&limit=50');
+      setScanned(data.visitors);
+    } catch { /* silent */ } finally {
+      setScannedLoading(false);
+    }
+  };
+
+  const scannedDoAction = async (type, v) => {
+    setScannedAction(v._id + type);
+    try {
+      await api.patch(`/visitors/${v._id}/${type}`);
+      toast.success(type === 'approve' ? 'Entry approved ✅' : 'Visitor declined ❌');
+      setScannedDetail(null);
+      fetchScanned();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Action failed');
+    } finally {
+      setScannedAction('');
+    }
+  };
+
   const fetchRecent = async (page = recentPage, date = recentDate, status = recentStatus) => {
     const p = new URLSearchParams({ page, limit: 10 });
     if (date) p.set('date', date);
@@ -197,6 +233,7 @@ export default function GuardPanel() {
     setVisitor(null);
     setApprovedVisitor(null);
     setVerifiedVisitor(null);
+    setScannedDetail(null);
     setTab(id);
   };
 
@@ -321,6 +358,108 @@ export default function GuardPanel() {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+        )}
+
+        {/* ── SCANNED TAB ── */}
+        {tab === 'scanned' && (
+          <div className="space-y-3 mt-2">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-slate-800">Scanned Visitors</h2>
+              <button onClick={fetchScanned} className="text-xs text-orange-500 font-semibold hover:underline">🔄 Refresh</button>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-2 text-xs text-blue-700 font-medium">
+              🆕 Visitors who submitted QR — approve or decline without scanning
+            </div>
+
+            {scannedLoading && (
+              <div className="text-center py-10">
+                <div className="w-8 h-8 border-4 border-orange-300 border-t-orange-500 rounded-full animate-spin mx-auto" />
+              </div>
+            )}
+
+            {/* Detail modal */}
+            <AnimatePresence>
+              {scannedDetail && (
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+                  className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                  {scannedDetail.photoUrl && <img src={scannedDetail.photoUrl} alt="Visitor" className="w-full h-44 object-cover" />}
+                  <div className="p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800">{scannedDetail.fullName}</h3>
+                        <p className="text-slate-500 text-sm">{scannedDetail.company || 'Individual'}</p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[scannedDetail.status]}`}>
+                        {scannedDetail.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <InfoRow icon="📞" label="Phone" value={scannedDetail.phone} />
+                      <InfoRow icon="🎯" label="Purpose" value={scannedDetail.purpose} />
+                      <InfoRow icon="👤" label="Host" value={scannedDetail.host || '—'} />
+                      <InfoRow icon="📅" label="Date" value={scannedDetail.date} />
+                      {scannedDetail.geoLocation?.lat && (
+                        <div className={`col-span-2 rounded-xl p-3 border ${
+                          scannedDetail.geoLocation.isInsidePremises
+                            ? 'bg-green-50 border-green-100'
+                            : 'bg-orange-50 border-orange-200'
+                        }`}>
+                          <p className={`text-xs font-semibold ${scannedDetail.geoLocation.isInsidePremises ? 'text-green-600' : 'text-orange-600'}`}>
+                            {scannedDetail.geoLocation.isInsidePremises ? '✅ Inside office premises' : '⚠️ Outside office premises'}
+                          </p>
+                          <p className="text-xs text-slate-500 font-mono mt-0.5">
+                            {scannedDetail.geoLocation.lat.toFixed(5)}, {scannedDetail.geoLocation.lng.toFixed(5)}
+                            {scannedDetail.geoLocation.lastVerified && ` · ${new Date(scannedDetail.geoLocation.lastVerified).toLocaleTimeString()}`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <ActionBtn color="green" icon="✅" label="Approve Entry" loading={scannedAction === scannedDetail._id + 'approve'} onClick={() => scannedDoAction('approve', scannedDetail)} />
+                      <ActionBtn color="red" icon="❌" label="Decline" loading={scannedAction === scannedDetail._id + 'decline'} onClick={() => scannedDoAction('decline', scannedDetail)} />
+                    </div>
+                    <button onClick={() => setScannedDetail(null)}
+                      className="w-full py-2 text-sm text-orange-500 hover:text-orange-700 font-semibold">
+                      ← Back to list
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {!scannedLoading && !scannedDetail && (
+              scanned.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <p className="text-4xl mb-3">🆕</p>
+                  <p className="font-semibold">No pending scanned visitors</p>
+                </div>
+              ) : scanned.map(v => (
+                <motion.div key={v._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3 cursor-pointer hover:border-orange-200 transition-colors"
+                  onClick={() => setScannedDetail(v)}>
+                  {v.photoUrl
+                    ? <img src={v.photoUrl} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
+                    : <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-lg font-bold text-orange-600 flex-shrink-0">{v.fullName[0]}</div>
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-800 truncate">{v.fullName}</p>
+                    <p className="text-xs text-slate-500">{v.purpose} · {v.host || 'No host'}</p>
+                    <p className="text-xs text-slate-400">{v.date} · {v.phone}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="px-2 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">PENDING</span>
+                    {v.geoLocation?.lat && (
+                      <span className={`text-xs font-semibold ${
+                        v.geoLocation.isInsidePremises ? 'text-green-500' : 'text-orange-500'
+                      }`}>
+                        {v.geoLocation.isInsidePremises ? '✅ inside' : '⚠️ outside'}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              ))
+            )}
           </div>
         )}
 
