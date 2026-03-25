@@ -97,12 +97,22 @@ export default function Login() {
             </motion.button>
           </form>
 
-          {/* Visitor link */}
-          <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 text-center">
-            <p className="text-xs text-white/40 mb-2">Not staff? Register as a visitor</p>
-            <a href="/visitor"
-              className="inline-flex items-center gap-1.5 px-5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all">
-              Visitor Check-In Form →
+          {/* Visitor & Pass links */}
+          <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 text-center space-y-2">
+            <p className="text-xs text-white/40 mb-2">Not staff? Choose an option below</p>
+            <div className="flex gap-2">
+              <a href="/visitor"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all">
+                🏢 Visitor Check-In
+              </a>
+              <a href="/pass/request"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 text-xs font-bold rounded-xl border border-orange-500/30 transition-all">
+                🎫 Request Pass
+              </a>
+            </div>
+            <a href="/pass/login"
+              className="block w-full text-center px-3 py-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all">
+              Already have a pass? Sign in to Pass Portal →
             </a>
           </div>
 

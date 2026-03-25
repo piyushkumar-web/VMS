@@ -7,16 +7,18 @@ import Visitors from './Visitors';
 import Guards from './Guards';
 import BlacklistPanel from './BlacklistPanel';
 import LogsPanel from './LogsPanel';
+import PassPanel from './PassPanel';
 
 const NAV = [
-  { id: 'overview', icon: '📊', label: 'Overview' },
-  { id: 'visitors', icon: '👥', label: 'Visitors' },
-  { id: 'guards',   icon: '🛡️', label: 'Guards' },
-  { id: 'blacklist',icon: '🚫', label: 'Blacklist' },
-  { id: 'logs',     icon: '📋', label: 'Audit Logs' },
+  { id: 'overview',  icon: '📊', label: 'Overview' },
+  { id: 'visitors',  icon: '👥', label: 'Visitors' },
+  { id: 'passes',    icon: '🎫', label: 'Passes' },
+  { id: 'guards',    icon: '🛡️', label: 'Guards' },
+  { id: 'blacklist', icon: '🚫', label: 'Blacklist' },
+  { id: 'logs',      icon: '📋', label: 'Audit Logs' },
 ];
 
-const PANELS = { overview: Overview, visitors: Visitors, guards: Guards, blacklist: BlacklistPanel, logs: LogsPanel };
+const PANELS = { overview: Overview, visitors: Visitors, passes: PassPanel, guards: Guards, blacklist: BlacklistPanel, logs: LogsPanel };
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();

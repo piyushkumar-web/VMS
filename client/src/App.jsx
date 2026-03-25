@@ -6,6 +6,10 @@ import EntryForm from './Components/EntryForm';
 import Login from './pages/Login';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import GuardPanel from './pages/guard/GuardPanel';
+import PassForm from './pages/PassForm';
+import PassLogin from './pages/PassLogin';
+import SetPassword from './pages/SetPassword';
+import PassUserPanel from './pages/PassUserPanel';
 
 export default function App() {
   return (
@@ -21,6 +25,10 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/visitor" element={<EntryForm />} />
+          <Route path="/pass/request" element={<PassForm />} />
+          <Route path="/pass/login" element={<PassLogin />} />
+          <Route path="/pass/verify/:token" element={<SetPassword />} />
+          <Route path="/pass/dashboard" element={<PassUserPanel />} />
           <Route path="/admin" element={
             <ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>
           } />
