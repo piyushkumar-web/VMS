@@ -34,3 +34,59 @@
 //   .catch(err => console.error('MongoDB error:', err));
 
 // app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`));
+
+
+
+
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+
+const app = express();
+
+app.use(cors({ 
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', process.env.FRONTEND_URL], 
+  credentials: true 
+}));
+app.use(express.json({ limit: '10mb' }));
+
+// Routes - Direct without /api prefix
+app.use('/auth', require('./routes/auth'));
+app.use('/visitors', require('./routes/visitors'));
+app.use('/blacklist', require('./routes/blacklist'));
+app.use('/logs', require('./routes/logs'));
+
+// Health check
+app.get('/health', (_, res) => res.json({ status: 'ok' }));
+
+// Root endpoint
+app.get('/', (_, res) => res.json({ message: 'VMS Backend is running' }));
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI)
+  .then(async () => {
+    console.log('MongoDB connected');
+    // Seed default admin if none exists
+    const User = require('./models/User');
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (!adminExists) {
+      await User.create({ name: 'Super Admin', email: 'admin@vms.com', password: 'Admin@123', role: 'admin' });
+      console.log('Default admin created: admin@vms.com / Admin@123');
+    }
+    const guardExists = await User.findOne({ role: 'guard' });
+    if (!guardExists) {
+      await User.create({ name: 'Default Guard', email: 'guard@vms.com', password: 'Guard@123', role: 'guard' });
+      console.log('Default guard created: guard@vms.com / Guard@123');
+    }
+  })
+  .catch(err => console.error('MongoDB error:', err));
+
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+// Export the Express app for Vercel
+module.exports = app;
