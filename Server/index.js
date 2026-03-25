@@ -39,24 +39,34 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 
 const app = express();
 
-// ✅ CORS (FIXED for your live frontend + local dev)
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    'https://vms-nine-bay.vercel.app'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
+// ✅ CORS FIX (manual - fully reliable)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'https://vms-nine-bay.vercel.app'
+];
 
-// ✅ Handle preflight requests (IMPORTANT for CORS)
-app.options('*', cors());
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 // ✅ Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -67,7 +77,7 @@ app.use('/api/visitors', require('./routes/visitors'));
 app.use('/api/blacklist', require('./routes/blacklist'));
 app.use('/api/logs', require('./routes/logs'));
 
-// ✅ Root route (optional but useful)
+// ✅ Root route
 app.get('/', (req, res) => {
   res.send('VMS Backend Running 🚀');
 });
@@ -77,7 +87,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// ✅ MongoDB connect + seed
+// ✅ MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('MongoDB connected');
@@ -92,7 +102,6 @@ mongoose.connect(process.env.MONGO_URI)
         password: 'Admin@123',
         role: 'admin'
       });
-      console.log('Default admin created');
     }
 
     const guardExists = await User.findOne({ role: 'guard' });
@@ -103,12 +112,11 @@ mongoose.connect(process.env.MONGO_URI)
         password: 'Guard@123',
         role: 'guard'
       });
-      console.log('Default guard created');
     }
   })
   .catch(err => console.error('MongoDB error:', err));
 
-// ✅ Use PORT properly (Render uses dynamic port)
+// ✅ PORT (Render compatible)
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

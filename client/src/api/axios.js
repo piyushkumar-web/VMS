@@ -26,11 +26,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://vms-3-xn2b.onrender.com/api',
-  withCredentials: true
+  baseURL: 'https://vms-3-xn2b.onrender.com/api'
 });
 
-// Request Interceptor
+// 🔹 Request Interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('vms_token');
@@ -42,7 +41,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor
+// 🔹 Response Interceptor
 api.interceptors.response.use(
   (response) => response,
   (error) => {
