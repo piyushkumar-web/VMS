@@ -42,7 +42,7 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-// ✅ CORS FIX (manual - fully reliable)
+// ✅ Allowed origins
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -50,17 +50,34 @@ const allowedOrigins = [
   'https://vms-nine-bay.vercel.app'
 ];
 
+// ✅ CORS middleware (FULL FIX)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
+  // Allow frontend origin
   if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Origin', origin);
   }
 
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  // Important for caching proxies
+  res.setHeader('Vary', 'Origin');
 
+  // Allow all required methods
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+  );
+
+  // Allow all headers (CRITICAL FIX)
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  );
+
+  // Allow credentials (safe even if not used)
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  // Handle preflight request
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -87,7 +104,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// ✅ MongoDB
+// ✅ MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('MongoDB connected');
@@ -116,7 +133,7 @@ mongoose.connect(process.env.MONGO_URI)
   })
   .catch(err => console.error('MongoDB error:', err));
 
-// ✅ PORT (Render compatible)
+// ✅ Port (Render compatible)
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
