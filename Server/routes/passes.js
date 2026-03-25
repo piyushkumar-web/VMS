@@ -35,12 +35,16 @@ function createTransporter() {
 
 async function sendApprovalMail(pass, verifyUrl) {
   let transporter = createTransporter();
+  console.log("transporter", transporter);
   if (!transporter) {
     const testAccount = await nodemailer.createTestAccount();
+    console.log("testAccount", testAccount);
     transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email', port: 587, secure: false,
+      
+      host: 'smtp.gmail.com', port: 587, secure: false,
       auth: { user: testAccount.user, pass: testAccount.pass },
     });
+    console.log('nodemailer err', transporter);
     console.log('[MAIL] Ethereal account:', testAccount.user);
   }
   const info = await transporter.sendMail({
