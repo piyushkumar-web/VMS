@@ -117,7 +117,7 @@ export default function Login() {
           </div>
 
           {/* Default creds */}
-          <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/10">
+          {/* <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/10">
             <p className="text-xs font-bold text-white/40 mb-2.5 text-center uppercase tracking-wider">Default Credentials</p>
             <div className="space-y-2">
               {[
@@ -130,7 +130,7 @@ export default function Login() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
         </div>
       </motion.div>
     </div>
