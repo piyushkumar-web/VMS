@@ -8,7 +8,7 @@ const inp = "w-full px-4 py-3 rounded-xl bg-white/60 border border-slate-200 foc
 const lbl = "block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide";
 
 const PURPOSES = [
-  'Regular Employment', 'Contract Work', 'Internship', 'Vendor / Supplier',
+  'Regular Employment', 'Contract Work', 'Trainee', 'Internship', 'Vendor / Supplier',
   'IT / Technical Support', 'Training & Development', 'Project Deployment',
   'Audit / Compliance', 'Consultant', 'Other',
 ];
@@ -42,6 +42,7 @@ function validate(form, photo, geoStatus) {
   if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Enter a valid email address';
   if (!form.address.trim()) return 'Address is required';
   if (!form.purpose) return 'Please select a purpose';
+  if (form.purpose === 'Trainee' && !form.traineeEmployeeId?.trim()) return 'Employee ID is required for Trainee role';
   if (!form.startDate) return 'Start date is required';
   if (!form.endDate) return 'End date is required';
   if (form.endDate < form.startDate) return 'End date must be after start date';
@@ -54,7 +55,7 @@ export default function PassForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: '', phone: '', email: '', company: '', address: '',
-    purpose: '', host: '', startDate: '', endDate: '',
+    purpose: '', host: '', startDate: '', endDate: '', traineeEmployeeId: '',
   });
   const [duration, setDuration] = useState('1m');
   const [photo, setPhoto] = useState(null);
@@ -229,6 +230,31 @@ export default function PassForm() {
               <input name="host" value={form.host} onChange={handleChange} placeholder="Employee name" className={inp} />
             </div>
           </div>
+
+          {/* Trainee Employee ID — shown only when purpose is Trainee */}
+          {form.purpose === 'Trainee' && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className="bg-blue-500/10 border border-blue-400/30 rounded-2xl p-4"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🪪</span>
+                <div>
+                  <p className="text-sm font-bold text-blue-200">Trainee Role Detected</p>
+                  <p className="text-xs text-blue-300/70">Please provide the Employee ID of your reporting manager or supervisor</p>
+                </div>
+              </div>
+              <label className={lbl}>Supervisor / Reporting Employee ID <span className="text-orange-400">*</span></label>
+              <input
+                name="traineeEmployeeId"
+                value={form.traineeEmployeeId}
+                onChange={handleChange}
+                placeholder="e.g. EMP-00123"
+                className={inp}
+                autoComplete="off"
+              />
+            </motion.div>
+          )}
 
           {/* Address */}
           <div>

@@ -319,6 +319,17 @@ export default function PassPanel() {
                     ))}
                   </div>
 
+                  {/* Trainee Employee ID */}
+                  {selected.traineeEmployeeId && (
+                    <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                      <span className="text-lg">🪪</span>
+                      <div>
+                        <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Supervisor Employee ID</p>
+                        <p className="text-sm font-bold text-slate-800">{selected.traineeEmployeeId}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Tenure strip */}
                   <div className="flex items-center gap-3 bg-orange-50 border border-orange-100 rounded-2xl px-4 py-3">
                     <span className="text-lg">📅</span>

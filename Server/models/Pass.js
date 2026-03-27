@@ -10,6 +10,7 @@ const passSchema = new mongoose.Schema({
   address: String,
   purpose: { type: String, required: true },
   host: String,
+  traineeEmployeeId: String,
   photoUrl: String,
   signature: String,
   // tenure
