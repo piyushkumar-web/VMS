@@ -186,15 +186,16 @@ export default function PassPanel() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {passes.map(p => (
-                  <tr key={p._id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={p._id} onClick={() => openDetail(p)}
+                    className="hover:bg-orange-50/60 transition-colors cursor-pointer group">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {p.photoUrl
-                          ? <img src={p.photoUrl} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt="" />
-                          : <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center text-xs font-bold text-orange-600 flex-shrink-0">{p.fullName[0]}</div>
+                          ? <img src={p.photoUrl} className="w-8 h-10 rounded-lg object-cover object-top flex-shrink-0" alt="" />
+                          : <div className="w-8 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-xs font-bold text-orange-600 flex-shrink-0">{p.fullName[0]}</div>
                         }
                         <div>
-                          <p className="font-semibold text-slate-800 whitespace-nowrap">{p.fullName}</p>
+                          <p className="font-semibold text-slate-800 whitespace-nowrap group-hover:text-orange-600 transition-colors">{p.fullName}</p>
                           <p className="text-xs text-slate-400">{p.phone}</p>
                         </div>
                       </div>
@@ -216,10 +217,9 @@ export default function PassPanel() {
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[p.status]}`}>{p.status}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => openDetail(p)}
-                        className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 font-semibold text-xs rounded-lg transition-colors">
-                        View
-                      </button>
+                      <span className="px-3 py-1.5 bg-orange-50 group-hover:bg-orange-100 text-orange-600 font-semibold text-xs rounded-lg transition-colors inline-block">
+                        View →
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -243,133 +243,230 @@ export default function PassPanel() {
       {/* Detail Modal */}
       <AnimatePresence>
         {selected && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center sm:p-4"
+            onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col"
+            >
+              {/* ── Hero: photo + identity ── */}
+              <div className="relative flex-shrink-0">
 
-              {selected.photoUrl && <img src={selected.photoUrl} alt="" className="w-full h-44 object-cover rounded-t-3xl" />}
+                {/* Portrait photo — full width on mobile, fixed height */}
+                <div className="relative w-full h-56 sm:h-64 bg-slate-900 overflow-hidden">
+                  {selected.photoUrl
+                    ? <img
+                        src={selected.photoUrl}
+                        alt={selected.fullName}
+                        className="w-full h-full object-cover object-top"
+                      />
+                    : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900">
+                        <span className="text-8xl font-black text-white/20 select-none">{selected.fullName[0]}</span>
+                      </div>
+                  }
+                  {/* Dark gradient overlay at bottom */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-              <div className="p-6 space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-800">{selected.fullName}</h3>
-                    <p className="text-slate-500 text-sm">{selected.company || 'Individual'}</p>
+                  {/* Close button — top right */}
+                  <button
+                    onClick={() => setSelected(null)}
+                    className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors text-sm backdrop-blur-sm"
+                  >
+                    ✕
+                  </button>
+
+                  {/* Status pill — top left */}
+                  <div className="absolute top-3 left-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-sm ${
+                      selected.status === 'approved' ? 'bg-green-500/90 text-white' :
+                      selected.status === 'pending'  ? 'bg-amber-400/90 text-amber-900' :
+                      selected.status === 'declined' ? 'bg-red-500/90 text-white' :
+                                                       'bg-slate-500/90 text-white'
+                    }`}>{selected.status}</span>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[selected.status]}`}>{selected.status.toUpperCase()}</span>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {[
-                    ['📧', 'Email', selected.email],
-                    ['📞', 'Phone', selected.phone],
-                    ['🎯', 'Purpose', selected.purpose],
-                    ['👤', 'Host', selected.host || '—'],
-                    ['📅', 'Start', selected.startDate],
-                    ['📅', 'End', selected.endDate],
-                  ].map(([icon, label, val]) => (
-                    <div key={label} className="bg-slate-50 rounded-xl p-3">
-                      <p className="text-xs text-slate-400">{icon} {label}</p>
-                      <p className="font-semibold text-slate-700 text-sm truncate">{val}</p>
+                  {/* Name + meta — bottom overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 px-5 pb-4 pt-8">
+                    <h3 className="text-xl font-black text-white leading-tight">{selected.fullName}</h3>
+                    <p className="text-white/60 text-sm mt-0.5">
+                      {selected.company || 'Individual'}
+                      {selected.purpose && <span className="text-white/40"> · {selected.purpose}</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Scrollable body ── */}
+              <div className="overflow-y-auto flex-1">
+                <div className="p-5 space-y-4">
+
+                  {/* Contact info grid */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { icon: '📧', label: 'Email', val: selected.email },
+                      { icon: '📞', label: 'Phone', val: selected.phone },
+                      { icon: '👤', label: 'Host', val: selected.host || '—' },
+                      { icon: '🏢', label: 'Company', val: selected.company || '—' },
+                    ].map(({ icon, label, val }) => (
+                      <div key={label} className="bg-slate-50 rounded-2xl px-3.5 py-3 border border-slate-100">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{icon} {label}</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate">{val}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Tenure strip */}
+                  <div className="flex items-center gap-3 bg-orange-50 border border-orange-100 rounded-2xl px-4 py-3">
+                    <span className="text-lg">📅</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">Pass Tenure</p>
+                      <p className="text-sm font-bold text-slate-800">{selected.startDate} <span className="text-slate-400 font-normal">→</span> {selected.endDate}</p>
                     </div>
-                  ))}
-                </div>
-
-                {/* Geo info */}
-                {selected.geoLocation?.lat && (
-                  <div className={`rounded-xl p-3 border ${selected.geoLocation.isInsidePremises ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-200'}`}>
-                    <p className={`text-xs font-semibold ${selected.geoLocation.isInsidePremises ? 'text-green-700' : 'text-orange-700'}`}>
-                      {selected.geoLocation.isInsidePremises ? '✅ Registered from inside office' : '⚠️ Registered from outside office'}
-                    </p>
-                    <p className="text-xs text-slate-500 font-mono mt-0.5">
-                      {selected.geoLocation.lat.toFixed(5)}, {selected.geoLocation.lng.toFixed(5)}
-                    </p>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[10px] text-slate-400">Duration</p>
+                      <p className="text-sm font-bold text-orange-600">
+                        {Math.ceil((new Date(selected.endDate) - new Date(selected.startDate)) / 86400000) + 1}d
+                      </p>
+                    </div>
                   </div>
-                )}
 
-                {/* Tenure edit */}
-                {selected.status === 'approved' && (
-                  <div>
-                    <button onClick={() => setShowTenure(!showTenure)}
-                      className="text-sm text-orange-500 font-semibold hover:underline">
-                      {showTenure ? '▲ Hide' : '✏️ Edit Tenure'}
-                    </button>
-                    {showTenure && (
-                      <div className="mt-3 space-y-3">
+                  {/* Geo info */}
+                  {selected.geoLocation?.lat && (
+                    <div className={`flex items-center gap-3 rounded-2xl px-4 py-3 border ${
+                      selected.geoLocation.isInsidePremises
+                        ? 'bg-green-50 border-green-100'
+                        : 'bg-amber-50 border-amber-100'
+                    }`}>
+                      <span className="text-lg">{selected.geoLocation.isInsidePremises ? '✅' : '⚠️'}</span>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-bold ${
+                          selected.geoLocation.isInsidePremises ? 'text-green-700' : 'text-amber-700'
+                        }`}>
+                          {selected.geoLocation.isInsidePremises ? 'Registered from inside office' : 'Registered from outside office'}
+                        </p>
+                        <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+                          {selected.geoLocation.lat.toFixed(5)}, {selected.geoLocation.lng.toFixed(5)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Tenure edit (approved) ── */}
+                  {selected.status === 'approved' && (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                      <button
+                        onClick={() => setShowTenure(!showTenure)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <span>✏️ Edit Tenure</span>
+                        <span className="text-slate-400 text-xs">{showTenure ? '▲ Hide' : '▼ Show'}</span>
+                      </button>
+                      {showTenure && (
+                        <div className="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Start Date</label>
+                              <input type="date" value={tenureEdit.startDate}
+                                onChange={e => setTenureEdit(t => ({ ...t, startDate: e.target.value }))}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">End Date</label>
+                              <input type="date" value={tenureEdit.endDate}
+                                onChange={e => setTenureEdit(t => ({ ...t, endDate: e.target.value }))}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+                            </div>
+                          </div>
+                          <button onClick={updateTenure} disabled={actionLoading === 'tenure'}
+                            className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                            {actionLoading === 'tenure' ? 'Saving…' : 'Save Changes'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Approve / Decline (pending) ── */}
+                  {selected.status === 'pending' && (
+                    <div className="space-y-3">
+                      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-amber-700 mb-3 flex items-center gap-1.5"><span>📅</span> Confirm Tenure Before Approving</p>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs font-semibold text-slate-600 mb-1 block">Start Date</label>
-                            <input type="date" value={tenureEdit.startDate} onChange={e => setTenureEdit(t => ({ ...t, startDate: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-500" />
+                            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Start Date</label>
+                            <input type="date" value={tenureEdit.startDate}
+                              onChange={e => setTenureEdit(t => ({ ...t, startDate: e.target.value }))}
+                              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
                           </div>
                           <div>
-                            <label className="text-xs font-semibold text-slate-600 mb-1 block">End Date</label>
-                            <input type="date" value={tenureEdit.endDate} onChange={e => setTenureEdit(t => ({ ...t, endDate: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-500" />
+                            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">End Date</label>
+                            <input type="date" value={tenureEdit.endDate}
+                              onChange={e => setTenureEdit(t => ({ ...t, endDate: e.target.value }))}
+                              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
                           </div>
                         </div>
-                        <button onClick={updateTenure} disabled={actionLoading === 'tenure'}
-                          className="w-full py-2.5 bg-orange-500 text-white font-bold rounded-xl text-sm disabled:opacity-50">
-                          {actionLoading === 'tenure' ? 'Saving…' : 'Save Tenure'}
-                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Actions */}
-                {selected.status === 'pending' && (
-                  <div className="space-y-3">
-                    {/* Tenure for approval */}
-                    <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
-                      <p className="text-xs font-bold text-orange-700 mb-3">📅 Set/Confirm Tenure Before Approving</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-semibold text-slate-600 mb-1 block">Start Date</label>
-                          <input type="date" value={tenureEdit.startDate} onChange={e => setTenureEdit(t => ({ ...t, startDate: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-500" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-600 mb-1 block">End Date</label>
-                          <input type="date" value={tenureEdit.endDate} onChange={e => setTenureEdit(t => ({ ...t, endDate: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-orange-500" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button onClick={approve} disabled={actionLoading === 'approve'}
-                        className="py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg shadow-green-200 disabled:opacity-50 transition-colors">
-                        {actionLoading === 'approve' ? '…' : '✅ Approve & Email'}
-                      </button>
-                      <button onClick={() => setShowDecline(!showDecline)}
-                        className="py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors">
-                        ❌ Decline
-                      </button>
-                    </div>
-                    {showDecline && (
-                      <div className="space-y-2">
-                        <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)}
-                          placeholder="Reason for declining (optional)…" rows={2}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-400 resize-none" />
-                        <button onClick={decline} disabled={actionLoading === 'decline'}
-                          className="w-full py-2.5 bg-red-500 text-white font-bold rounded-xl text-sm disabled:opacity-50">
-                          {actionLoading === 'decline' ? 'Declining…' : 'Confirm Decline'}
+                        <button onClick={approve} disabled={actionLoading === 'approve'}
+                          className="py-3.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-2xl shadow-md shadow-green-100 disabled:opacity-50 transition-colors text-sm flex items-center justify-center gap-1.5">
+                          {actionLoading === 'approve'
+                            ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Approving…</>
+                            : <><span>✅</span> Approve & Email</>
+                          }
+                        </button>
+                        <button onClick={() => setShowDecline(!showDecline)}
+                          className={`py-3.5 font-bold rounded-2xl shadow-md text-sm transition-colors flex items-center justify-center gap-1.5 ${
+                            showDecline
+                              ? 'bg-slate-200 text-slate-700 shadow-slate-100'
+                              : 'bg-red-500 hover:bg-red-600 text-white shadow-red-100'
+                          }`}>
+                          <span>❌</span> {showDecline ? 'Cancel' : 'Decline'}
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                <div className="flex gap-3 pt-2">
-                  <button onClick={() => setSelected(null)}
-                    className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm">
-                    Close
-                  </button>
-                  <button onClick={() => deletePass(selected._id)}
-                    className="px-4 py-2.5 bg-red-50 text-red-500 font-bold rounded-xl hover:bg-red-100 transition-colors text-sm">
-                    🗑️ Delete
-                  </button>
+                      {showDecline && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                          className="space-y-2.5"
+                        >
+                          <textarea
+                            value={declineReason} onChange={e => setDeclineReason(e.target.value)}
+                            placeholder="Reason for declining (optional)…" rows={2}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 resize-none"
+                          />
+                          <button onClick={decline} disabled={actionLoading === 'decline'}
+                            className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                            {actionLoading === 'decline'
+                              ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Declining…</>
+                              : 'Confirm Decline'
+                            }
+                          </button>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Footer actions ── */}
+                  <div className="flex gap-2.5 pt-1 pb-1">
+                    <button
+                      onClick={() => setSelected(null)}
+                      className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-colors text-sm"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={() => deletePass(selected._id)}
+                      className="flex items-center gap-1.5 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-500 font-bold rounded-2xl transition-colors text-sm border border-red-100"
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+
                 </div>
               </div>
             </motion.div>

@@ -16,8 +16,8 @@ const STATUS_COLORS = {
 };
 
 const TABS = [
+   { id: 'scanned', label: '🆕 Scanned' },
   { id: 'scan', label: '📷 Entry Scan' },
-  { id: 'scanned', label: '🆕 Scanned' },
   { id: 'verify', label: '🔍 Verify' },
   { id: 'roster', label: '🚨 Roster' },
   { id: 'recent', label: '📋 Recent' },

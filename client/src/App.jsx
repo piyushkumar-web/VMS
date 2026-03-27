@@ -3,7 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './Components/ui/ProtectedRoute';
 import EntryForm from './Components/EntryForm';
-import Login from './pages/Login';
+import Landing from './pages/Landing';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import GuardPanel from './pages/guard/GuardPanel';
 import PassForm from './pages/PassForm';
@@ -23,7 +23,7 @@ export default function App() {
           }}
         />
         <Routes>
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<Landing />} />
           <Route path="/visitor" element={<EntryForm />} />
           <Route path="/pass/request" element={<PassForm />} />
           <Route path="/pass/login" element={<PassLogin />} />
